@@ -5,7 +5,6 @@ from django.conf.urls.static import static
 from .views import (IndexListView,
                     post_detail,
                     ProfileListView,
-                    register,
                     CategoryPostsListView,
                     edit_profile,
                     create_post,
@@ -13,8 +12,8 @@ from .views import (IndexListView,
                     delete_post,
                     create_comment,
                     edit_comment,
-                    delete_comment, custom_permission_denied_view,
-                    custom_page_not_found_view,)
+                    delete_comment,
+                    register,)
 
 app_name = 'blog'
 
@@ -35,10 +34,3 @@ urlpatterns = [
     path('posts/<int:post_id>/delete_comment/<int:comment_id>/',
          delete_comment, name='delete_comment'),
 ]
-
-handler403 = custom_permission_denied_view
-handler404 = custom_page_not_found_view
-
-if settings.DEBUG:
-    urlpatterns += static(settings.MEDIA_URL,
-                          document_root=settings.MEDIA_ROOT)

@@ -26,13 +26,12 @@ class Category(TimeStampedModel):
         verbose_name="Идентификатор",
         help_text=(
             "Идентификатор страницы для URL; разрешены символы латиницы, "
-            "цифры, дефис и подчёркивание."
-        )
-    )
+            "цифры, дефис и подчёркивание."))
 
     class Meta:
         verbose_name = "категория"
         verbose_name_plural = "Категории"
+        ordering = ('title',)
 
     def __str__(self):
         return self.title[:50]
@@ -44,18 +43,20 @@ class Location(TimeStampedModel):
     class Meta:
         verbose_name = "местоположение"
         verbose_name_plural = "Местоположения"
+        ordering = ('name',)
 
     def __str__(self):
         return self.name[:50]
 
 
 class Post(TimeStampedModel):
+    RELATED_NAME = "posts"
+
     title = models.CharField(max_length=256, verbose_name="Заголовок")
     text = models.TextField(verbose_name="Текст")
-    image = models.ImageField(upload_to='images/', verbose_name="Изображение")
+    image = models.ImageField(upload_to="images/", verbose_name="Изображение")
     comment_count = models.IntegerField(
-        default=0, verbose_name='Количество комментариев'
-    )
+        default=0, verbose_name='Количество комментариев')
     pub_date = models.DateTimeField(
         verbose_name="Дата и время публикации",
         help_text=(
@@ -67,7 +68,7 @@ class Post(TimeStampedModel):
         User,
         on_delete=models.CASCADE,
         verbose_name="Автор публикации",
-        related_name="posts"
+        related_name=RELATED_NAME
     )
     location = models.ForeignKey(
         Location,
@@ -75,14 +76,14 @@ class Post(TimeStampedModel):
         null=True,
         blank=True,
         verbose_name="Местоположение",
-        related_name="posts"
+        related_name=RELATED_NAME
     )
     category = models.ForeignKey(
         Category,
         on_delete=models.SET_NULL,
         null=True,
         verbose_name="Категория",
-        related_name="posts"
+        related_name=RELATED_NAME
     )
 
     class Meta:
@@ -106,9 +107,10 @@ class Comment(models.Model):
     author = models.ForeignKey(
         User,
         on_delete=models.CASCADE,
-        verbose_name="Автор комментария"
+        verbose_name="Автор",
+        related_name="comments"  # Добавлено related_name
     )
-    text = models.TextField(verbose_name="Текст комментария")
+    text = models.TextField(verbose_name="Текст")
     created_at = models.DateTimeField(
         auto_now_add=True, verbose_name="Дата добавления")
 
