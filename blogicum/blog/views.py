@@ -68,7 +68,9 @@ class CategoryPostsListView(ListView):
         return get_published_posts(posts)
 
     def get_context_data(self, *, object_list=None, **kwargs):
-        return super().get_context_data(**kwargs, category=self._get_category())
+        return super().get_context_data(
+            **kwargs, category=self._get_category()
+        )
 
 
 class ProfileListView(ListView):
@@ -89,7 +91,7 @@ class ProfileListView(ListView):
 
 
 def edit_post(request, post_id):
-    post = get_object_or_404(Post, id=post_id) 
+    post = get_object_or_404(Post, id=post_id)
     if request.user != post.author:
         return redirect("blog:post_detail", post_id=post.id)
     post_form = PostUpdateForm(
@@ -100,7 +102,7 @@ def edit_post(request, post_id):
     if post_form.is_valid():
         post_form.save()
         return redirect("blog:post_detail", post_id=post.id)
-    
+
     return render(request, "blog/create.html", {"form": post_form})
 
 
@@ -120,7 +122,7 @@ def delete_post(request, post_id):
 def create_comment(request, post_id):
     post = get_object_or_404(Post, id=post_id)
     comment_form = CommentUpdateForm(request.POST)
-    
+
     if comment_form.is_valid():
         comment = comment_form.save(commit=False)
         comment.author = request.user
@@ -129,7 +131,7 @@ def create_comment(request, post_id):
 
         post.comment_count += 1
         post.save()
-    
+
     return redirect("blog:post_detail", post_id=post.id)
 
 
@@ -145,7 +147,8 @@ def edit_comment(request, post_id, comment_id):
         comment_form.save()
         return redirect("blog:post_detail", post_id=post_id)
 
-    return render(request, "blog/comment.html", {"form": comment_form, "comment": comment})
+    return render(request, "blog/comment.html", {"form": comment_form,
+                                                 "comment": comment})
 
 
 def delete_comment(request, post_id, comment_id):
