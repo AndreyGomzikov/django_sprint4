@@ -96,7 +96,6 @@ class Post(TimeStampedModel):
                 f"Категория: {self.category})")
 
 
-
 class Comment(models.Model):
     post = models.ForeignKey(
         Post,
