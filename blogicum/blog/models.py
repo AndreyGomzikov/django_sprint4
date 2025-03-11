@@ -31,7 +31,7 @@ class Category(TimeStampedModel):
     class Meta:
         verbose_name = "категория"
         verbose_name_plural = "Категории"
-        ordering = ('title',)
+        ordering = ("title",)
 
     def __str__(self):
         return self.title[:50]
@@ -43,20 +43,19 @@ class Location(TimeStampedModel):
     class Meta:
         verbose_name = "местоположение"
         verbose_name_plural = "Местоположения"
-        ordering = ('name',)
+        ordering = ("name",)
 
     def __str__(self):
         return self.name[:50]
 
 
 class Post(TimeStampedModel):
-    RELATED_NAME = "posts"
-
     title = models.CharField(max_length=256, verbose_name="Заголовок")
     text = models.TextField(verbose_name="Текст")
     image = models.ImageField(upload_to="images/", verbose_name="Изображение")
     comment_count = models.IntegerField(
-        default=0, verbose_name='Количество комментариев')
+        default=0, verbose_name='Количество комментариев'
+    )
     pub_date = models.DateTimeField(
         verbose_name="Дата и время публикации",
         help_text=(
@@ -68,7 +67,7 @@ class Post(TimeStampedModel):
         User,
         on_delete=models.CASCADE,
         verbose_name="Автор публикации",
-        related_name=RELATED_NAME
+        related_name="posts"
     )
     location = models.ForeignKey(
         Location,
@@ -76,25 +75,26 @@ class Post(TimeStampedModel):
         null=True,
         blank=True,
         verbose_name="Местоположение",
-        related_name=RELATED_NAME
+        related_name="posts"
     )
     category = models.ForeignKey(
         Category,
         on_delete=models.SET_NULL,
         null=True,
         verbose_name="Категория",
-        related_name=RELATED_NAME
+        related_name="posts"
     )
 
     class Meta:
         verbose_name = "публикация"
         verbose_name_plural = "Публикации"
-        ordering = ('-pub_date',)
+        ordering = ("-pub_date",)
 
     def __str__(self):
         return (f"{self.title[:47]} (Автор: {self.author.username}, "
                 f"Дата: {self.pub_date.strftime('%d-%m-%Y')}, "
                 f"Категория: {self.category})")
+
 
 
 class Comment(models.Model):
@@ -108,7 +108,7 @@ class Comment(models.Model):
         User,
         on_delete=models.CASCADE,
         verbose_name="Автор",
-        related_name="comments"  # Добавлено related_name
+        related_name="comments"
     )
     text = models.TextField(verbose_name="Текст")
     created_at = models.DateTimeField(
@@ -117,7 +117,7 @@ class Comment(models.Model):
     class Meta:
         verbose_name = "комментарий"
         verbose_name_plural = "Комментарии"
-        ordering = ('created_at',)
+        ordering = ("created_at",)
 
     def __str__(self):
         return (

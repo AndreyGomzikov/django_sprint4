@@ -17,6 +17,7 @@ class PostUpdateForm(forms.ModelForm):
     class Meta:
         model = Post
         fields = ('title', 'text', 'image', 'pub_date', 'location', 'category')
+        exclude = ('author',)
 
 
 class CommentUpdateForm(forms.ModelForm):

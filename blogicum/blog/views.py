@@ -5,19 +5,41 @@ from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.timezone import now
 from django.views.generic import ListView
+from django.urls import reverse_lazy
+from django.views.generic.edit import CreateView
 
 from .forms import UserUpdateForm, PostUpdateForm, CommentUpdateForm
 from .models import Post, Category, User, Comment
 
+
 PAGINATE_BY = 10
 
 
-def get_published_posts(posts=Post.objects):
-    return posts.filter(
-        is_published=True,
-        pub_date__lte=now(),
-        category__is_published=True
-    ).select_related("category", "author", "location")
+def get_published_posts(posts=Post.objects, filter_published=True,
+                        select_related_fields=None):
+    if filter_published:
+        posts = posts.filter(
+            is_published=True,
+            pub_date__lte=now(),
+            category__is_published=True
+        )
+
+    if select_related_fields:
+        posts = posts.select_related(*select_related_fields)
+
+    return posts
+
+
+class RegisterView(CreateView):
+    template_name = "registration/registration_form.html"
+    form_class = UserCreationForm
+    success_url = reverse_lazy("login")
+
+    def form_valid(self, form):
+        response = super().form_valid(form)
+        username = form.cleaned_data.get("username")
+        messages.success(self.request, f"Аккаунт создан для {username}!")
+        return response
 
 
 class IndexListView(ListView):
@@ -30,25 +52,21 @@ class IndexListView(ListView):
 
 def post_detail(request, post_id):
     post = get_object_or_404(Post, id=post_id)
-    comment_form = CommentUpdateForm()
-    comments = Comment.objects.filter(post=post_id)
 
-    if request.user == post.author:
-        return render(
-            request,
-            "blog/detail.html",
-            {"post": post, "form": comment_form, "comments": comments}
-        )
-    else:
-        published_posts = get_published_posts()
-        if post not in published_posts:
+    if request.user != post.author:
+        if not post.is_published:
             return HttpResponse("Страница снята с публикации", status=404)
 
-        return render(
-            request,
-            "blog/detail.html",
-            {"post": post, "form": comment_form, "comments": comments}
-        )
+        post = get_object_or_404(get_published_posts(), id=post_id)
+
+    comment_form = CommentUpdateForm()
+    comments = Comment.objects.filter(post=post)
+
+    return render(
+        request,
+        "blog/detail.html",
+        {"post": post, "form": comment_form, "comments": comments}
+    )
 
 
 class CategoryPostsListView(ListView):
@@ -57,20 +75,18 @@ class CategoryPostsListView(ListView):
     context_object_name = "posts"
     paginate_by = PAGINATE_BY
 
-    def _get_category(self):
-        return get_object_or_404(
-            Category, slug=self.kwargs["category_slug"], is_published=True
-        )
-
     def get_queryset(self):
-        category = self._get_category()
-        posts = category.posts.all()
-        return get_published_posts(posts)
+        category = get_object_or_404(
+            Category,
+            slug=self.kwargs["category_slug"],
+            is_published=True
+        )
+        return get_published_posts(category.posts.all())
 
     def get_context_data(self, *, object_list=None, **kwargs):
-        return super().get_context_data(
-            **kwargs, category=self._get_category()
-        )
+        category = get_object_or_404(
+            Category, slug=self.kwargs["category_slug"], is_published=True)
+        return super().get_context_data(**kwargs, category=category)
 
 
 class ProfileListView(ListView):
@@ -79,26 +95,33 @@ class ProfileListView(ListView):
     context_object_name = "posts"
     paginate_by = PAGINATE_BY
 
-    def _get_user(self):
+    def get_profile_user(self):
         return get_object_or_404(User, username=self.kwargs["username"])
 
     def get_queryset(self):
-        user = self._get_user()
-        return user.posts.all()
+        profile_user = self.get_profile_user()
+        if self.request.user == profile_user:
+            return profile_user.posts.all()
+        return get_published_posts(profile_user.posts.all())
 
     def get_context_data(self, *, object_list=None, **kwargs):
-        return super().get_context_data(**kwargs, profile=self._get_user())
+        return super().get_context_data(
+            **kwargs, profile=self.get_profile_user()
+        )
 
 
+@login_required
 def edit_post(request, post_id):
     post = get_object_or_404(Post, id=post_id)
     if request.user != post.author:
         return redirect("blog:post_detail", post_id=post.id)
+
     post_form = PostUpdateForm(
         request.POST or None,
         request.FILES or None,
         instance=post
     )
+
     if post_form.is_valid():
         post_form.save()
         return redirect("blog:post_detail", post_id=post.id)
@@ -106,30 +129,30 @@ def edit_post(request, post_id):
     return render(request, "blog/create.html", {"form": post_form})
 
 
+@login_required
 def delete_post(request, post_id):
     post = get_object_or_404(Post, id=post_id)
     if request.method == "POST" and post.author.id == request.user.id:
         post.delete()
         return redirect("blog:index")
-    else:
-        if post.author != request.user:
-            return redirect("blog:post_detail", int(post.id))
-        post_form = PostUpdateForm(instance=post)
-        return render(request, "blog/create.html", {"form": post_form})
+
+    if post.author != request.user:
+        return redirect("blog:post_detail", int(post.id))
+
+    post_form = PostUpdateForm(instance=post)
+    return render(request, "blog/create.html", {"form": post_form})
 
 
 @login_required
 def create_comment(request, post_id):
     post = get_object_or_404(Post, id=post_id)
     comment_form = CommentUpdateForm(request.POST)
-
     if comment_form.is_valid():
         comment = comment_form.save(commit=False)
         comment.author = request.user
         comment.post = post
         comment.save()
-
-        post.comment_count += 1
+        post.comment_count = post.comments.count()
         post.save()
 
     return redirect("blog:post_detail", post_id=post.id)
@@ -155,9 +178,6 @@ def delete_comment(request, post_id, comment_id):
     comment = get_object_or_404(Comment, id=comment_id)
     if request.method == "POST" and comment.author.id == request.user.id:
         comment.delete()
-        post = get_object_or_404(Post, id=post_id)
-        post.comment_count -= 1
-        post.save()
         return redirect("blog:post_detail", post_id)
     else:
         return render(request, "blog/comment.html", {"comment": comment})
@@ -183,18 +203,3 @@ def edit_profile(request):
         return redirect("blog:profile", request.user.username)
 
     return render(request, "blog/user.html", {"form": user_form})
-
-
-def register(request):
-    if request.method == "POST":
-        form = UserCreationForm(request.POST)
-        if form.is_valid():
-            form.save()
-            username = form.cleaned_data.get("username")
-            messages.success(request, f"Аккаунт создан для {username}!")
-            return redirect("login")
-    else:
-        form = UserCreationForm()
-    return render(request,
-                  "registration/registration_form.html", {"form": form}
-                  )
