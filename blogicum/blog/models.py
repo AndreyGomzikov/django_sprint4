@@ -53,9 +53,6 @@ class Post(TimeStampedModel):
     title = models.CharField(max_length=256, verbose_name="Заголовок")
     text = models.TextField(verbose_name="Текст")
     image = models.ImageField(upload_to="images/", verbose_name="Изображение")
-    comment_count = models.IntegerField(
-        default=0, verbose_name='Количество комментариев'
-    )
     pub_date = models.DateTimeField(
         verbose_name="Дата и время публикации",
         help_text=(
@@ -94,6 +91,10 @@ class Post(TimeStampedModel):
         return (f"{self.title[:47]} (Автор: {self.author.username}, "
                 f"Дата: {self.pub_date.strftime('%d-%m-%Y')}, "
                 f"Категория: {self.category})")
+
+    def comment_count(self):
+        count = Comment.objects.filter(post=self)
+        return len(count)
 
 
 class Comment(models.Model):
