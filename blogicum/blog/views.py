@@ -11,26 +11,23 @@ from .models import Post, Category, User, Comment
 PAGINATE_BY = 10
 
 
-def get_available_post(post_id, user):
-    post = get_object_or_404(Post, id=post_id)
-    if (not (post.is_published
-             and post.pub_date <= now()
-             and post.category.is_published)
-            and post.author != user):
-        raise Http404("Страница снята с публикации")
-    return post
-
-
-def get_filtered_posts(posts=Post.objects, filter_published=True):
+def get_posts(posts=Post.objects, filter_published=True, select_related=True,
+              annotate=True
+              ):
     if filter_published:
         posts = posts.filter(
             is_published=True,
             pub_date__lte=now(),
             category__is_published=True
         )
-    posts = posts.select_related('author', 'category').annotate(
-        comment_count=Count('comments')
-    ).order_by('-pub_date')
+    if select_related:
+        posts = posts.select_related('author', 'category')
+    if annotate:
+        posts = posts.annotate(comment_count=Count('comments'))
+    ordering = Post._meta.ordering if hasattr(Post._meta, 'ordering') else []
+    if ordering:
+        posts = posts.order_by(*ordering)
+
     return posts
 
 
@@ -39,11 +36,21 @@ class IndexListView(ListView):
     template_name = "blog/index.html"
     context_object_name = "posts"
     paginate_by = PAGINATE_BY
-    queryset = get_filtered_posts()
+    queryset = get_posts()
 
 
 def post_detail(request, post_id):
-    post = get_available_post(post_id, request.user)
+    if request.user.is_authenticated:
+        post = get_object_or_404(Post, id=post_id)
+        if post.author == request.user:
+            return render(request, "blog/detail.html", {
+                "post": post,
+                "form": CommentUpdateForm(),
+                "comments": post.comments.all(),
+            })
+
+    posts = get_posts(Post.objects)
+    post = get_object_or_404(posts, id=post_id)
 
     return render(request, "blog/detail.html", {
         "post": post,
@@ -66,7 +73,7 @@ class CategoryPostsListView(ListView):
         )
 
     def get_queryset(self):
-        return get_filtered_posts(self.get_category().posts.all())
+        return get_posts(self.get_category().posts.all())
 
     def get_context_data(self, *, object_list=None, **kwargs):
         return super().get_context_data(**kwargs) | {
@@ -85,16 +92,8 @@ class ProfileListView(ListView):
 
     def get_queryset(self):
         author = self.get_author()
-        posts = author.posts.all()
-
-        if self.request.user != author:
-            posts = get_filtered_posts(posts)
-
-        posts = posts.select_related('author', 'category').annotate(
-            comment_count=Count('comments')
-        ).order_by('-pub_date')
-
-        return posts
+        filter_published = self.request.user != author
+        return get_posts(author.posts.all(), filter_published)
 
     def get_context_data(self, *, object_list=None, **kwargs):
         return super().get_context_data(**kwargs, profile=self.get_author())
@@ -136,9 +135,8 @@ def create_comment(request, post_id):
         post = get_object_or_404(Post, id=post_id)
         comment.post = post
         comment.save()
-        return redirect("blog:post_detail", post_id=post.id)
 
-    return redirect("blog:post_detail", post_id=post_id)
+    return redirect("blog:post_detail", post_id)
 
 
 @login_required
@@ -151,15 +149,16 @@ def edit_comment(request, post_id, comment_id):
 
     if form.is_valid():
         form.save()
-        return redirect("blog:post_detail", post_id=post_id)
+        return redirect("blog:post_detail", post_id)
 
     return render(request, "blog/comment.html", {"form": form,
                                                  "comment": comment})
 
 
+@login_required
 def delete_comment(request, post_id, comment_id):
     comment = get_object_or_404(Comment, id=comment_id)
-    if request.method == "POST" and comment.author.id == request.user.id:
+    if request.method == "POST" and comment.author == request.user:
         comment.delete()
         return redirect("blog:post_detail", post_id)
 

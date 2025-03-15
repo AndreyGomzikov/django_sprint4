@@ -92,9 +92,6 @@ class Post(TimeStampedModel):
                 f"Дата: {self.pub_date.strftime('%d-%m-%Y')}, "
                 f"Категория: {self.category})")
 
-    def comment_count(self):
-        return self.comments.count()
-
 
 class Comment(models.Model):
     post = models.ForeignKey(
