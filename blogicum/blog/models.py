@@ -93,8 +93,7 @@ class Post(TimeStampedModel):
                 f"Категория: {self.category})")
 
     def comment_count(self):
-        count = Comment.objects.filter(post=self)
-        return len(count)
+        return self.comments.count()
 
 
 class Comment(models.Model):
