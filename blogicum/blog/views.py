@@ -20,14 +20,13 @@ def get_posts(posts=Post.objects, filter_published=True, select_related=True,
             category__is_published=True
         )
     if select_related:
-        posts = posts.select_related('author', 'category', 'location')
+        posts = posts.select_related("author", "category", "location")
     if annotate:
-        posts = posts.annotate(comment_count=Count('comments'))
+        posts = posts.annotate(comment_count=Count(
+            "comments")).order_by("-comment_count")
 
-    if hasattr(Post._meta, 'ordering') and Post._meta.ordering:
-        return posts.order_by(*Post._meta.ordering)
-
-    return posts
+    ordering = Post._meta.ordering or ["-pub_date"]
+    return posts.order_by(*ordering)
 
 
 class IndexListView(ListView):
