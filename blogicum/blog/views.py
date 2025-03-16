@@ -23,9 +23,9 @@ def get_posts(posts=Post.objects, filter_published=True, select_related=True,
         posts = posts.select_related('author', 'category', 'location')
     if annotate:
         posts = posts.annotate(comment_count=Count('comments'))
-        posts = posts.order_by('-comment_count')
+
     if hasattr(Post._meta, 'ordering') and Post._meta.ordering:
-        posts = posts.order_by(*Post._meta.ordering)
+        return posts.order_by(*Post._meta.ordering)
 
     return posts
 
@@ -42,20 +42,15 @@ def post_detail(request, post_id):
     post = get_object_or_404(Post, id=post_id)
     if post.author != request.user:
         post = get_object_or_404(
-            Post.objects.filter(
-                is_published=True,
-                pub_date__lte=now(),
-                category__is_published=True
-            ),
+            get_posts(select_related=False, annotate=False),
             id=post_id
         )
-    context = {
+
+    return render(request, "blog/detail.html", {
         "post": post,
         "form": CommentUpdateForm(),
         "comments": post.comments.all(),
-    }
-
-    return render(request, "blog/detail.html", context)
+    })
 
 
 class CategoryPostsListView(ListView):
