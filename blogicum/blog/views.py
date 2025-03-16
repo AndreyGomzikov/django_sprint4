@@ -1,8 +1,8 @@
 from django.contrib.auth.decorators import login_required
+from django.db.models import Count
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.timezone import now
 from django.views.generic import ListView
-from django.db.models import Count
 
 from .forms import UserUpdateForm, PostUpdateForm, CommentUpdateForm
 from .models import Post, Category, User, Comment
@@ -20,12 +20,12 @@ def get_posts(posts=Post.objects, filter_published=True, select_related=True,
             category__is_published=True
         )
     if select_related:
-        posts = posts.select_related('author', 'category')
+        posts = posts.select_related('author', 'category', 'location')
     if annotate:
         posts = posts.annotate(comment_count=Count('comments'))
-    ordering = Post._meta.ordering if hasattr(Post._meta, 'ordering') else []
-    if ordering:
-        posts = posts.order_by(*ordering)
+        posts = posts.order_by('-comment_count')
+    if hasattr(Post._meta, 'ordering') and Post._meta.ordering:
+        posts = posts.order_by(*Post._meta.ordering)
 
     return posts
 
@@ -39,23 +39,23 @@ class IndexListView(ListView):
 
 
 def post_detail(request, post_id):
-    if request.user.is_authenticated:
-        post = get_object_or_404(Post, id=post_id)
-        if post.author == request.user:
-            return render(request, "blog/detail.html", {
-                "post": post,
-                "form": CommentUpdateForm(),
-                "comments": post.comments.all(),
-            })
-
-    posts = get_posts(Post.objects)
-    post = get_object_or_404(posts, id=post_id)
-
-    return render(request, "blog/detail.html", {
+    post = get_object_or_404(Post, id=post_id)
+    if post.author != request.user:
+        post = get_object_or_404(
+            Post.objects.filter(
+                is_published=True,
+                pub_date__lte=now(),
+                category__is_published=True
+            ),
+            id=post_id
+        )
+    context = {
         "post": post,
         "form": CommentUpdateForm(),
         "comments": post.comments.all(),
-    })
+    }
+
+    return render(request, "blog/detail.html", context)
 
 
 class CategoryPostsListView(ListView):
