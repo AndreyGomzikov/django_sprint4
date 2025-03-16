@@ -25,8 +25,7 @@ def get_posts(posts=Post.objects, filter_published=True, select_related=True,
         posts = posts.annotate(comment_count=Count(
             "comments")).order_by("-comment_count")
 
-    ordering = Post._meta.ordering or ["-pub_date"]
-    return posts.order_by(*ordering)
+    return posts.order_by(*Post._meta.ordering)
 
 
 class IndexListView(ListView):
